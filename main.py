@@ -1,15 +1,15 @@
 import os
 import json
-import time
+import feedparser
 import requests
-from bs4 import BeautifulSoup
 
+# 💡 請將下方的網址換成你在 FetchRSS 產生的專屬 RSS 網址
 STORES = {
-    "聯萌玩具百貨精品批發": "https://www.facebook.com/lemon600/",
-    "湯姆熊歡樂世界-台南海佃店": "https://www.facebook.com/TOMSWORLDSHD/",
-    "翻轉x點子 桌遊館": "https://www.facebook.com/filpidea/",
-    "玖零玩具": "https://www.facebook.com/100084424252105/",
-    "扭蛋將軍x轉蛋概念館": "https://www.facebook.com/macross50711/"
+    "聯萌玩具百貨精品批發": "https://fetchrss.com/feed/1xFWgyGhwFOc1xFWhR5nRFbm.rss",
+    "湯姆熊歡樂世界-台南海佃店": "https://fetchrss.com/feed/1xFWgyGhwFOc1xFWmX81O0Ti.rss",
+    "翻轉x點子 桌遊館": "https://fetchrss.com/feed/1xFWgyGhwFOc1xFWnBENu7XO.rss",
+    "玖零玩具": "https://fetchrss.com/feed/1xFWgyGhwFOc1xFWnm1XQA30.rss",
+    "扭蛋將軍x轉蛋概念館": "https://fetchrss.com/feed/1xFWgyGhwFOc1xFWoGFw40WI.rss"
 }
 
 KEYWORDS = ["陀螺", "g3"]
@@ -26,55 +26,32 @@ def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def fetch_mobile_fb(url):
-    m_url = url.replace("www.facebook.com", "m.facebook.com")
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
-        "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"
-    }
+def fetch_rss_posts(rss_url):
+    """透過 RSS 讀取粉專貼文，穩定且不會被 FB 阻擋"""
+    if "你的_FetchRSS網址" in rss_url:
+        print("請先替換成真實的 RSS 網址！")
+        return []
+    
     try:
-        res = requests.get(m_url, headers=headers, timeout=10)
-        print(f"Fetching {m_url} - Status Code: {res.status_code}")
-        if res.status_code != 200:
-            return []
-        
-        soup = BeautifulSoup(res.text, 'html.parser')
+        feed = feedparser.parse(rss_url)
         posts = []
         
-        # 擴大搜尋範圍：抓取所有可能包含內文的 div 或 article
-        elements = soup.find_all(['article', 'div'], class_=['story_body_container', '_5rgt', '_52jj'])
-        if not elements:
-            # 如果找不到特定 class，嘗試抓取所有文字段落較長的 div
-            elements = soup.find_all('div', style=True) or soup.find_all('p')
-
-        print(f"Found {len(elements)} potential blocks for {url}")
-
-        for el in elements:
-            text = el.get_text().strip()
-            if len(text) < 10:  # 排除太短的無效字串
-                continue
+        for entry in feed.entries:
+            title = getattr(entry, 'title', '')
+            summary = getattr(entry, 'summary', '')
+            full_text = f"{title}\n{summary}"
             
-            lower_text = text.lower()
+            lower_text = full_text.lower()
             if any(kw in lower_text for kw in KEYWORDS):
                 posts.append({
-                    "content": text[:150].strip() + "...",
-                    "full_text": text.strip()
+                    "content": full_text[:150].strip() + "...",
+                    "full_text": full_text.strip()
                 })
             if len(posts) == 3:
                 break
-        
-        # 如果透過結構找不到，嘗試把整個網頁文字抓出來作關鍵字比對備用
-        if not posts:
-            body_text = soup.get_text()
-            if any(kw in body_text.lower() for kw in KEYWORDS):
-                posts.append({
-                    "content": "偵測到頁面包含關鍵字，但無法精確切割單篇貼文...",
-                    "full_text": "請直接點擊粉專連結查看詳細內容。"
-                })
-
         return posts
     except Exception as e:
-        print(f"Error fetching {url}: {e}")
+        print(f"Error parsing RSS {rss_url}: {e}")
         return []
 
 def send_notification(updated_store, all_data):
@@ -82,33 +59,49 @@ def send_notification(updated_store, all_data):
         print("Webhook URL not set!")
         return
 
-    message = f"🚨 **【陀螺 / G3 賽事最新動態檢查】** 🚨\n"
-    message += f"🔔 **狀態：{updated_store}**\n"
+    message = f"🚨 **【陀螺 / G3 賽事最新動態】** 🚨\n"
+    message += f"🔔 **更新來源：{updated_store}** 有新賽事資訊發布！\n"
     message += "==============================\n\n"
 
     for store, posts in all_data.items():
-        message += f"🏪 **【{store}】**\n"
+        message += f"🏪 **【{store}】（最新相關貼文）**\n"
         if not posts:
-            message += "  目前無相關「陀螺」或妹妹「G3」貼文\n\n"
+            message += "  目前無相關「陀螺」或「G3」貼文\n\n"
         else:
             for idx, post in enumerate(posts, 1):
                 message += f"  [{idx}] {post['content']}\n"
-                message += f"      📌 內文摘要：{post['full_text'][:100]}...\n\n"
+                message += f"      📌 內文摘要/報名提示：{post['full_text'][:100]}...\n\n"
         message += "------------------------------\n"
 
     requests.post(WEBHOOK_URL, json={"content": message})
 
 def main():
     db = load_db()
+    has_update = False
+    updated_store_name = ""
 
-    for store, url in STORES.items():
-        latest_posts = fetch_mobile_fb(url)
-        if latest_posts:
-            db[store] = latest_posts
+    for store, rss_url in STORES.items():
+        latest_posts = fetch_rss_posts(rss_url)
+        if not latest_posts:
+            continue
+            
+        old_first = db[store][0]['content'] if db.get(store) and len(db[store]) > 0 else ""
+        new_first = latest_posts[0]['content'] if len(latest_posts) > 0 else ""
 
-    save_db(db)
-    send_notification("網頁解析調整測試", db)
-    print("Test notification sent successfully.")
+        # 比對第一篇貼文是否與資料庫不同
+        if new_first and new_first != old_first:
+            has_update = True
+            updated_store_name = store
+
+        db[store] = latest_posts
+
+    # 只有當偵測到有新貼文時才發送通知（正式上線模式）
+    if has_update:
+        save_db(db)
+        send_notification(updated_store_name, db)
+        print(f"Update detected from {updated_store_name}, notification sent.")
+    else:
+        print("No new updates found. Staying quiet.")
 
 if __name__ == "__main__":
     main()
