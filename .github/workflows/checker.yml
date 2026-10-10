@@ -2,12 +2,11 @@ name: FB Spider Checker
 
 on:
   schedule:
-    # 修改為每 5 分鐘執行一次 (GitHub 支援的最高頻率極限)
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write  # 確保具備寫入權限
 
 jobs:
   run-checker:
@@ -31,9 +30,10 @@ jobs:
         run: |
           python main.py
 
-      - name: Commit and push changes if db updated
-        run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "bot@github.com"
-          git add posts_db.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update posts db [skip ci]" && git push)
+      - name: Auto commit and push db changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          file_pattern: posts_db.json
+          commit_message: "Update posts db [skip ci]"
+          commit_user_name: "GitHub Action Bot"
+          commit_user_email: "bot@github.com"
