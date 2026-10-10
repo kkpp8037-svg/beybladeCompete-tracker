@@ -59,7 +59,7 @@ def send_notification(updated_store, all_data):
         return
 
     message = f"🚨 **【陀螺比賽最新動態通知】** 🚨\n"
-    message += f"🔔 **更新來源：{updated_store}** 有新賽事資訊發布！\n"
+    message += f"🔔 **來源：{updated_store}**\n"
     message += "==============================\n\n"
 
     for store, posts in all_data.items():
@@ -76,31 +76,16 @@ def send_notification(updated_store, all_data):
 
 def main():
     db = load_db()
-    has_update = False
-    updated_store_name = ""
 
     for store, url in STORES.items():
         latest_posts = fetch_mobile_fb(url)
-        if not latest_posts:
-            continue
-            
-        old_first = db[store][0]['content'] if db.get(store) and len(db[store]) > 0 else ""
-        new_first = latest_posts[0]['content'] if len(latest_posts) > 0 else ""
+        if latest_posts:
+            db[store] = latest_posts
 
-        # 只要第一篇貼文內容跟之前不一樣，就代表有新貼文
-        if new_first and new_first != old_first:
-            has_update = True
-            updated_store_name = store
-
-        db[store] = latest_posts
-
-    # 只有當偵測到有新貼文時，才儲存並發送通知
-    if has_update:
-        save_db(db)
-        send_notification(updated_store_name, db)
-        print(f"Update detected from {updated_store_name}, notification sent.")
-    else:
-        print("No new updates found. Staying quiet.")
+    # 測試模式：直接強制發送目前的最新抓取結果到 Discord 讓你確認
+    save_db(db)
+    send_notification("手動檢查測試（各店最新狀態）", db)
+    print("Test notification sent successfully.")
 
 if __name__ == "__main__":
     main()
