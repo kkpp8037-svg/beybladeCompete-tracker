@@ -12,7 +12,7 @@ STORES = {
     "扭蛋將軍x轉蛋概念館": "https://www.facebook.com/macross50711/"
 }
 
-KEYWORDS = ["陀螺", "比賽", "大賽", "報名"]
+KEYWORDS = ["陀螺", "比賽", "大賽", "報名", "G3"]
 DB_FILE = "posts_db.json"
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
