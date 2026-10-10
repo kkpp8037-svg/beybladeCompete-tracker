@@ -27,8 +27,6 @@ def save_db(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def fetch_mobile_fb(url):
-    """使用行動版 FB 網頁抓取，結構較單純且防護較輕"""
-    # 將一般網址轉為 m.facebook.com
     m_url = url.replace("www.facebook.com", "m.facebook.com")
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
@@ -41,7 +39,6 @@ def fetch_mobile_fb(url):
         soup = BeautifulSoup(res.text, 'html.parser')
         posts = []
         
-        # 尋找貼文區塊
         for article in soup.find_all('article'):
             text = article.get_text()
             if any(kw in text for kw in KEYWORDS):
@@ -90,19 +87,20 @@ def main():
         old_first = db[store][0]['content'] if db.get(store) and len(db[store]) > 0 else ""
         new_first = latest_posts[0]['content'] if len(latest_posts) > 0 else ""
 
+        # 只要第一篇貼文內容跟之前不一樣，就代表有新貼文
         if new_first and new_first != old_first:
             has_update = True
             updated_store_name = store
 
         db[store] = latest_posts
 
-    save_db(db)
-
+    # 只有當偵測到有新貼文時，才儲存並發送通知
     if has_update:
+        save_db(db)
         send_notification(updated_store_name, db)
         print(f"Update detected from {updated_store_name}, notification sent.")
     else:
-        print("No new updates found.")
+        print("No new updates found. Staying quiet.")
 
 if __name__ == "__main__":
     main()
